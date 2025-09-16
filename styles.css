@@ -1,0 +1,126 @@
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+If your plugin does not need CSS, delete this file.
+
+*/
+
+/*
+* Global Music Player Plugin Styles
+*/
+
+/* 状态栏音乐播放器样式 */
+.music-player-status {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.music-player-status:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+/* 音乐规则容器样式 */
+.music-rules-container {
+    margin-top: 1rem;
+}
+
+.music-rule-item {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background-color: var(--background-secondary);
+}
+
+.music-rule-item .setting-item {
+    border: none;
+    padding: 0.5rem 0;
+}
+
+.music-rule-item .setting-item-info {
+    flex-grow: 1;
+}
+
+.music-rule-item .setting-item-control {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* 音乐播放器控制按钮样式 */
+.music-player-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.music-player-button {
+    background: var(--interactive-normal);
+    border: none;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background-color 0.2s ease;
+}
+
+.music-player-button:hover {
+    background: var(--interactive-hover);
+}
+
+.music-player-button:active {
+    background: var(--interactive-accent);
+}
+
+.music-player-button.is-playing {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+/* 音量滑块样式 */
+.music-volume-slider {
+    width: 100px;
+}
+
+/* 设置页面特殊样式 */
+.setting-item-description.music-rule-desc {
+    font-family: var(--font-monospace);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* 音乐文件夹路径样式 */
+.music-folder-path {
+    font-family: var(--font-monospace);
+    background: var(--background-modifier-border);
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .music-rule-item .setting-item-control {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .music-player-controls {
+        flex-wrap: wrap;
+    }
+}
+
+/* 深色主题特定样式 */
+.theme-dark .music-rule-item {
+    background-color: var(--background-primary-alt);
+    border-color: var(--background-modifier-border-hover);
+}
+
+/* 浅色主题特定样式 */
+.theme-light .music-rule-item {
+    background-color: var(--background-secondary-alt);
+}
