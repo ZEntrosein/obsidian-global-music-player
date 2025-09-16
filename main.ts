@@ -1,5 +1,6 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, MarkdownPostProcessorContext } from 'obsidian';
 import { MusicBlockProcessor } from './music-block-processor';
+import { AdvancedAudioEngine, AudioTrack } from './advanced-audio-engine';
 
 // ===================== 类型定义 =====================
 
@@ -34,14 +35,9 @@ interface PlaybackContext {
 	frontmatterMusic?: string;
 }
 
-interface MusicTrack {
-	path: string;
-	name: string;
+interface MusicTrack extends AudioTrack {
 	duration?: number;
-	volume?: number;
 	source?: 'frontmatter' | 'rule' | 'music-block' | 'default';
-	fadeIn?: number;
-	loop?: boolean;
 }
 
 // ===================== 默认设置 =====================
@@ -294,7 +290,7 @@ class MusicRuleEngine {
 
 export default class GlobalMusicPlayer extends Plugin {
 	settings: MusicPlayerSettings;
-	audioEngine: AudioEngine;
+	audioEngine: AdvancedAudioEngine;
 	ruleEngine: MusicRuleEngine;
 	statusBarItem: HTMLElement;
 	private debounceTimer: number | null = null;
@@ -304,7 +300,7 @@ export default class GlobalMusicPlayer extends Plugin {
 		await this.loadSettings();
 		
 		// 初始化组件
-		this.audioEngine = new AudioEngine(this.app, this.settings.defaultVolume);
+		this.audioEngine = new AdvancedAudioEngine(this.app, this.settings.defaultVolume);
 		this.ruleEngine = new MusicRuleEngine(this.settings.musicRules);
 		
 		// 创建状态栏项目
@@ -488,15 +484,16 @@ export default class GlobalMusicPlayer extends Plugin {
 			const track: MusicTrack = {
 				path: musicPath,
 				name: this.extractTrackName(musicPath),
-				source: source
+				source: source,
+				type: 'bgm' // 默认作为背景音乐
 			};
 			
 			console.log(`Playing music from ${source}: ${musicPath}`);
-			await this.audioEngine.play(track);
+			await this.audioEngine.playBGM(track);
 			this.updateStatusBar();
 		} else {
 			console.log('No music found for this file');
-			this.audioEngine.stop();
+			this.audioEngine.stopAll();
 			this.updateStatusBar();
 		}
 	}

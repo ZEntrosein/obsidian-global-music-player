@@ -1,4 +1,6 @@
-interface AudioTrack {
+import { App, TFile } from 'obsidian';
+
+export interface AudioTrack {
 	path: string;
 	name: string;
 	volume?: number;
@@ -7,6 +9,7 @@ interface AudioTrack {
 	fadeOut?: number;
 	type?: 'bgm' | 'sfx'; // 背景音乐或音效
 	priority?: number; // 音效优先级
+	source?: 'frontmatter' | 'rule' | 'music-block' | 'default'; // 音频来源
 }
 
 interface AudioInstance {
@@ -19,14 +22,14 @@ interface AudioInstance {
 }
 
 export class AdvancedAudioEngine {
-	private app: any;
+	private app: App;
 	private globalVolume: number = 0.7;
 	private bgmInstance: AudioInstance | null = null;
 	private sfxInstances: Map<string, AudioInstance> = new Map();
-	private fadeSteps: number = 50; // 渐变步数
-	private fadeInterval: number = 50; // 渐变间隔 (ms)
+	private fadeSteps: number = 100; // 增加渐变步数以获得更平滑的效果
+	private fadeInterval: number = 16; // 使用 60fps 的间隔 (16.67ms)
 
-	constructor(app: any, volume: number = 0.7) {
+	constructor(app: App, volume: number = 0.7) {
 		this.app = app;
 		this.globalVolume = volume;
 	}
@@ -145,56 +148,82 @@ export class AdvancedAudioEngine {
 		this.sfxInstances.clear();
 	}
 
-	// 淡入效果
+	// 淡入效果 - 使用平滑的指数曲线
 	private async fadeIn(instance: AudioInstance, duration: number): Promise<void> {
 		return new Promise((resolve) => {
-			const stepVolume = instance.targetVolume / this.fadeSteps;
-			const stepTime = duration / this.fadeSteps;
-			let currentStep = 0;
-
-			const fadeInterval = setInterval(() => {
-				currentStep++;
-				const newVolume = Math.min(stepVolume * currentStep, instance.targetVolume);
+			const startTime = Date.now();
+			const startVolume = instance.currentVolume;
+			const targetVolume = instance.targetVolume;
+			
+			const updateVolume = () => {
+				const elapsed = Date.now() - startTime;
+				const progress = Math.min(elapsed / duration, 1);
 				
-				instance.audio.volume = newVolume;
-				instance.currentVolume = newVolume;
+				// 使用 ease-in-out 曲线获得更自然的声音过渡
+				const easedProgress = this.easeInOutQuad(progress);
+				const newVolume = startVolume + (targetVolume - startVolume) * easedProgress;
+				
+				// 使用更精确的音量控制，避免数字失真
+				const roundedVolume = Math.round(newVolume * 1000) / 1000;
+				instance.audio.volume = roundedVolume;
+				instance.currentVolume = roundedVolume;
 
-				if (currentStep >= this.fadeSteps || newVolume >= instance.targetVolume) {
-					clearInterval(fadeInterval);
-					instance.audio.volume = instance.targetVolume;
-					instance.currentVolume = instance.targetVolume;
+				if (progress >= 1) {
+					instance.audio.volume = targetVolume;
+					instance.currentVolume = targetVolume;
+					if (instance.fadeInterval) {
+						clearInterval(instance.fadeInterval);
+						instance.fadeInterval = undefined;
+					}
 					resolve();
 				}
-			}, stepTime);
+			};
 
+			// 使用 requestAnimationFrame 或固定间隔
+			const fadeInterval = setInterval(updateVolume, this.fadeInterval);
 			instance.fadeInterval = fadeInterval;
 		});
 	}
 
-	// 淡出效果
+	// 淡出效果 - 使用平滑的指数曲线
 	private async fadeOut(instance: AudioInstance, duration: number): Promise<void> {
 		return new Promise((resolve) => {
-			const stepVolume = instance.currentVolume / this.fadeSteps;
-			const stepTime = duration / this.fadeSteps;
-			let currentStep = 0;
-
-			const fadeInterval = setInterval(() => {
-				currentStep++;
-				const newVolume = Math.max(instance.currentVolume - (stepVolume * currentStep), 0);
+			const startTime = Date.now();
+			const startVolume = instance.currentVolume;
+			
+			const updateVolume = () => {
+				const elapsed = Date.now() - startTime;
+				const progress = Math.min(elapsed / duration, 1);
 				
-				instance.audio.volume = newVolume;
-				instance.currentVolume = newVolume;
+				// 使用 ease-in-out 曲线获得更自然的声音过渡
+				const easedProgress = this.easeInOutQuad(progress);
+				const newVolume = startVolume * (1 - easedProgress);
+				
+				// 使用更精确的音量控制，避免数字失真
+				const roundedVolume = Math.max(Math.round(newVolume * 1000) / 1000, 0);
+				instance.audio.volume = roundedVolume;
+				instance.currentVolume = roundedVolume;
 
-				if (currentStep >= this.fadeSteps || newVolume <= 0) {
-					clearInterval(fadeInterval);
+				if (progress >= 1 || roundedVolume <= 0) {
 					instance.audio.volume = 0;
 					instance.currentVolume = 0;
+					if (instance.fadeInterval) {
+						clearInterval(instance.fadeInterval);
+						instance.fadeInterval = undefined;
+					}
 					resolve();
 				}
-			}, stepTime);
+			};
 
+			// 使用固定间隔进行平滑过渡
+			const fadeInterval = setInterval(updateVolume, this.fadeInterval);
 			instance.fadeInterval = fadeInterval;
 		});
+	}
+
+	// 缓动函数：ease-in-out quad 曲线，提供平滑的音量过渡
+	private easeInOutQuad(t: number): number {
+		return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 	}
 
 	// 停止音频实例
@@ -241,7 +270,7 @@ export class AdvancedAudioEngine {
 
 		try {
 			const file = this.app.vault.getAbstractFileByPath(path);
-			if (file && file.constructor.name === 'TFile') {
+			if (file && file instanceof TFile) {
 				const arrayBuffer = await this.app.vault.readBinary(file);
 				const blob = new Blob([arrayBuffer], { type: this.getMimeType(path) });
 				const blobUrl = URL.createObjectURL(blob);
@@ -305,5 +334,50 @@ export class AdvancedAudioEngine {
 				this.bgmInstance.currentVolume = volume;
 			}
 		}
+	}
+
+	// ===== 兼容性方法 (向后兼容旧的AudioEngine API) =====
+
+	// 通用播放方法，根据track.type选择BGM或SFX
+	async play(track: AudioTrack): Promise<void> {
+		if (track.type === 'sfx') {
+			await this.playSFX(track);
+		} else {
+			await this.playBGM(track); // 默认为BGM
+		}
+	}
+
+	// 停止播放（alias for stopAll）
+	stop(): void {
+		this.stopAll();
+	}
+
+	// 检查是否正在播放任何音频
+	isCurrentlyPlaying(): boolean {
+		return this.isPlaying();
+	}
+
+	// 暂停当前BGM
+	pause(): void {
+		if (this.bgmInstance) {
+			this.bgmInstance.audio.pause();
+		}
+	}
+
+	// 恢复播放当前BGM
+	resume(): void {
+		if (this.bgmInstance && this.bgmInstance.audio.paused) {
+			this.bgmInstance.audio.play();
+		}
+	}
+
+	// 获取当前曲目（只返回BGM）
+	getCurrentTrack(): AudioTrack | null {
+		return this.getCurrentBGM();
+	}
+
+	// 获取当前音量
+	getVolume(): number {
+		return this.globalVolume;
 	}
 } 

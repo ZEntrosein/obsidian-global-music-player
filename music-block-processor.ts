@@ -9,6 +9,8 @@ interface MusicBlockConfig {
 	fadeOut?: number;
 	description?: string;
 	autoplay?: boolean;
+	type?: 'bgm' | 'sfx'; // 新增：音频类型
+	layered?: boolean; // 新增：是否叠加播放（不中断当前音乐）
 }
 
 interface MusicTrack {
@@ -18,7 +20,9 @@ interface MusicTrack {
 	volume?: number;
 	source?: 'frontmatter' | 'rule' | 'music-block' | 'default';
 	fadeIn?: number;
+	fadeOut?: number;
 	loop?: boolean;
+	type?: 'bgm' | 'sfx';
 }
 
 export class MusicBlockProcessor {
@@ -221,7 +225,9 @@ export class MusicBlockProcessor {
 			volume: config.volume || this.settings.defaultVolume,
 			source: 'music-block',
 			fadeIn: config.fadeIn || 0,
-			loop: config.loop !== false // 默认循环播放
+			fadeOut: config.fadeOut || 0,
+			loop: config.loop !== false, // 默认循环播放
+			type: config.type || 'bgm' // 默认为背景音乐
 		};
 
 		// 更新当前播放状态
@@ -231,7 +237,13 @@ export class MusicBlockProcessor {
 		}
 
 		console.log('🎵 Playing music block:', track);
-		await this.audioEngine.play(track);
+		
+		// 根据类型和分层设置选择播放方法
+		if (config.type === 'sfx' || config.layered) {
+			await this.audioEngine.playSFX(track);
+		} else {
+			await this.audioEngine.playBGM(track);
+		}
 		
 		// 更新状态栏
 		if (this.plugin.updateStatusBar) {
