@@ -24,6 +24,8 @@ interface MusicTrack {
 export class MusicBlockProcessor {
 	private activeMusicBlocks: Map<HTMLElement, MusicBlockConfig> = new Map();
 	private scrollObserver: IntersectionObserver | null = null;
+	private currentPlayingBlock: HTMLElement | null = null;
+	private currentPlayingConfig: MusicBlockConfig | null = null;
 	private settings: any;
 	private audioEngine: any;
 	private plugin: any;
@@ -35,15 +37,21 @@ export class MusicBlockProcessor {
 	}
 
 	setupProcessor(): void {
+		console.log('🎵 Setting up music block processor, enabled:', this.settings.musicBlockEnabled);
+		
 		if (!this.settings.musicBlockEnabled) {
+			console.log('🎵 Music block disabled in settings');
 			return;
 		}
 
+		console.log('🎵 Registering music code block processor');
 		this.plugin.registerMarkdownCodeBlockProcessor('music', (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+			console.log('🎵 Processing music block with source:', source);
 			this.processMusicBlock(source, el, ctx);
 		});
 
 		this.setupScrollObserver();
+		console.log('🎵 Music block processor setup complete');
 	}
 
 	private processMusicBlock(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
@@ -154,15 +162,29 @@ export class MusicBlockProcessor {
 				const config = this.activeMusicBlocks.get(musicBlock);
 				
 				if (config && entry.isIntersecting) {
+					// 检查是否与当前播放的音乐块相同
+					if (this.isSameMusicBlock(config, musicBlock)) {
+						console.log('🎵 Same music block still in view, continuing playback');
+						// 添加视觉反馈但不重新播放
+						musicBlock.classList.add('music-block-playing');
+						return;
+					}
+
 					// 元素进入视口，播放音乐
-					console.log('Music block entered viewport:', config);
-					this.playMusicBlock(config);
+					console.log('🎵 Music block entered viewport:', config);
+					this.playMusicBlock(config, musicBlock);
 					
 					// 添加视觉反馈
 					musicBlock.classList.add('music-block-playing');
 				} else if (config) {
 					// 元素离开视口
 					musicBlock.classList.remove('music-block-playing');
+					
+					// 如果这是当前播放的音乐块，清除引用
+					if (musicBlock === this.currentPlayingBlock) {
+						console.log('🎵 Current playing music block left viewport');
+						// 不立即停止播放，等待新的音乐块或超时
+					}
 				}
 			});
 		}, {
@@ -172,6 +194,14 @@ export class MusicBlockProcessor {
 
 		// 观察页面中所有现有的音乐块
 		this.observeExistingMusicBlocks();
+	}
+
+	private isSameMusicBlock(config: MusicBlockConfig, block: HTMLElement): boolean {
+		// 检查是否是同一个音乐块（基于配置和DOM元素）
+		return this.currentPlayingBlock === block && 
+			   this.currentPlayingConfig !== null &&
+			   this.currentPlayingConfig.track === config.track &&
+			   this.currentPlayingConfig.name === config.name;
 	}
 
 	private observeExistingMusicBlocks(): void {
@@ -184,7 +214,7 @@ export class MusicBlockProcessor {
 		});
 	}
 
-	private async playMusicBlock(config: MusicBlockConfig): Promise<void> {
+	private async playMusicBlock(config: MusicBlockConfig, block?: HTMLElement): Promise<void> {
 		const track: MusicTrack = {
 			path: config.track,
 			name: config.name || this.extractTrackName(config.track),
@@ -194,7 +224,13 @@ export class MusicBlockProcessor {
 			loop: config.loop !== false // 默认循环播放
 		};
 
-		console.log('Playing music block:', track);
+		// 更新当前播放状态
+		if (block) {
+			this.currentPlayingBlock = block;
+			this.currentPlayingConfig = config;
+		}
+
+		console.log('🎵 Playing music block:', track);
 		await this.audioEngine.play(track);
 		
 		// 更新状态栏
@@ -213,6 +249,8 @@ export class MusicBlockProcessor {
 			this.scrollObserver = null;
 		}
 		this.activeMusicBlocks.clear();
+		this.currentPlayingBlock = null;
+		this.currentPlayingConfig = null;
 	}
 
 	// 公共方法：重新观察音乐块（当页面内容变化时调用）

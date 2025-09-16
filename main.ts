@@ -12,6 +12,8 @@ interface MusicPlayerSettings {
 	frontmatterEnabled: boolean;
 	frontmatterProperty: string;
 	frontmatterPriority: boolean;
+	musicBlockEnabled: boolean;
+	musicBlockTriggerOffset: number;
 }
 
 interface MusicRule {
@@ -37,7 +39,9 @@ interface MusicTrack {
 	name: string;
 	duration?: number;
 	volume?: number;
-	source?: 'frontmatter' | 'rule' | 'default';
+	source?: 'frontmatter' | 'rule' | 'music-block' | 'default';
+	fadeIn?: number;
+	loop?: boolean;
 }
 
 // ===================== 默认设置 =====================
@@ -50,6 +54,8 @@ const DEFAULT_SETTINGS: MusicPlayerSettings = {
 	frontmatterEnabled: true,
 	frontmatterProperty: 'music',
 	frontmatterPriority: true,
+	musicBlockEnabled: true,
+	musicBlockTriggerOffset: 100,
 	musicRules: [
 		{
 			id: 'default-rule',
@@ -158,7 +164,7 @@ class AudioEngine {
 			// 创建新的音频元素
 			this.currentAudio = new Audio(resolvedPath);
 			this.currentAudio.volume = track.volume || this.volume;
-			this.currentAudio.loop = true;
+			this.currentAudio.loop = track.loop !== false; // 使用track中的loop设置，默认为true
 			
 			// 监听音频事件
 			this.currentAudio.addEventListener('error', (e) => {
@@ -314,8 +320,15 @@ export default class GlobalMusicPlayer extends Plugin {
 		this.addSettingTab(new MusicPlayerSettingTab(this.app, this));
 		
 		// 初始化音乐块处理器
+		console.log('🎵 Initializing music block processor...');
 		this.musicBlockProcessor = new MusicBlockProcessor(this, this.settings, this.audioEngine);
 		this.musicBlockProcessor.setupProcessor();
+		console.log('🎵 Music block processor initialized');
+		
+		// 测试音乐块处理器是否正常工作
+		console.log('🎵 Testing music block processor setup...');
+		console.log('🎵 Music block enabled:', this.settings.musicBlockEnabled);
+		console.log('🎵 Music block processor instance:', !!this.musicBlockProcessor);
 		
 		console.log('Global Music Player loaded');
 	}
@@ -359,10 +372,11 @@ export default class GlobalMusicPlayer extends Plugin {
 		}
 	}
 
-	private getSourceIcon(source?: 'frontmatter' | 'rule' | 'default'): string {
+	private getSourceIcon(source?: 'frontmatter' | 'rule' | 'music-block' | 'default'): string {
 		switch (source) {
 			case 'frontmatter': return '📄'; // 表示来自文件frontmatter
 			case 'rule': return '⚙️'; // 表示来自规则
+			case 'music-block': return '🎵'; // 表示来自音乐块
 			default: return '🎵'; // 默认
 		}
 	}
