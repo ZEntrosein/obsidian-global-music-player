@@ -442,6 +442,11 @@ export default class GlobalMusicPlayer extends Plugin {
 		}
 		
 		if (musicPath) {
+			// 清除音乐块处理器的状态，避免冲突
+			if (this.musicBlockProcessor) {
+				this.musicBlockProcessor.clearCurrentPlaying();
+			}
+			
 			const track: MusicTrack = {
 				path: musicPath,
 				name: this.extractTrackName(musicPath),

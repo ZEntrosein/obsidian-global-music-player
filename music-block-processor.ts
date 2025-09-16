@@ -263,6 +263,8 @@ export class MusicBlockProcessor {
 		if (config.type === 'sfx' || config.layered) {
 			await this.audioEngine.playSFX(track);
 		} else {
+			// 对于BGM，确保只有一个在播放
+			console.log('🎵 Starting BGM from music block, stopping any existing audio');
 			await this.audioEngine.playBGM(track);
 		}
 		
@@ -291,5 +293,18 @@ export class MusicBlockProcessor {
 		if (this.scrollObserver) {
 			this.observeExistingMusicBlocks();
 		}
+	}
+
+	// 公共方法：清除当前播放状态（防止冲突）
+	clearCurrentPlaying(): void {
+		console.log('🎵 Clearing current playing music block state');
+		this.currentPlayingBlock = null;
+		this.currentPlayingConfig = null;
+		
+		// 移除所有块的播放状态样式
+		const musicBlocks = document.querySelectorAll('.music-block-playing');
+		musicBlocks.forEach(block => {
+			block.classList.remove('music-block-playing');
+		});
 	}
 } 

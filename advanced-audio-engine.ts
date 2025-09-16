@@ -38,6 +38,11 @@ export class AdvancedAudioEngine {
 	private sfxInstances: Map<string, AudioInstance> = new Map();
 	private fadeSteps: number = 100; // 增加渐变步数以获得更平滑的效果
 	private fadeInterval: number = 16; // 使用 60fps 的间隔 (16.67ms)
+	
+	// 新增：音频管理状态
+	private isPlayingBGM: boolean = false;
+	private pendingBGMOperation: Promise<void> | null = null;
+	private audioManagerLock: boolean = false;
 
 	constructor(app: App, volume: number = 0.7) {
 		this.app = app;
@@ -46,56 +51,75 @@ export class AdvancedAudioEngine {
 
 	// 播放背景音乐（会替换当前BGM）
 	async playBGM(track: AudioTrack): Promise<void> {
+		// 防止并发播放BGM
+		if (this.audioManagerLock) {
+			console.log('🎵 BGM operation in progress, waiting...');
+			if (this.pendingBGMOperation) {
+				await this.pendingBGMOperation;
+			}
+		}
+
+		this.audioManagerLock = true;
 		console.log('🎵 Playing BGM:', track.name);
 		
-		// 如果有当前BGM，先淡出
-		if (this.bgmInstance) {
-			await this.fadeOut(this.bgmInstance, track.fadeOut || 1000);
-			this.stopAudio(this.bgmInstance);
-		}
+		try {
+			// 检查并清理可能的重复音频
+			this.checkAndCleanupDuplicateAudio();
+			
+			// 强制停止所有现有的BGM（确保不会有多个BGM同时播放）
+			await this.forceStopBGM();
 
-		// 创建新的BGM实例
-		const resolvedPath = await this.resolveAudioPath(track.path);
-		const audio = new Audio(resolvedPath);
-		
-		const instance: AudioInstance = {
-			audio,
-			track: { ...track, type: 'bgm' },
-			targetVolume: track.volume || this.globalVolume,
-			currentVolume: 0,
-			type: 'bgm',
-			isLooping: false
-		};
+			// 创建新的BGM实例
+			const resolvedPath = await this.resolveAudioPath(track.path);
+			const audio = new Audio(resolvedPath);
+			
+			const instance: AudioInstance = {
+				audio,
+				track: { ...track, type: 'bgm' },
+				targetVolume: track.volume || this.globalVolume,
+				currentVolume: 0,
+				type: 'bgm',
+				isLooping: false
+			};
 
-		// 设置音频属性
-		audio.loop = false; // 手动控制循环以支持播放区间
-		audio.volume = 0; // 从0开始淡入
-		
-		// 设置播放速度
-		if (track.playbackRate && track.playbackRate >= 0.25 && track.playbackRate <= 4.0) {
-			audio.playbackRate = track.playbackRate;
-			console.log('🎵 Set playback rate:', track.playbackRate);
-		}
+			// 设置音频属性
+			audio.loop = false; // 手动控制循环以支持播放区间
+			audio.volume = 0; // 从0开始淡入
+			
+			// 设置播放速度
+			if (track.playbackRate && track.playbackRate >= 0.25 && track.playbackRate <= 4.0) {
+				audio.playbackRate = track.playbackRate;
+				console.log('🎵 Set playback rate:', track.playbackRate);
+			}
 
-		// 设置事件监听
-		this.setupAudioEvents(instance);
-		this.setupPlaybackControl(instance);
+			// 设置事件监听
+			this.setupAudioEvents(instance);
+			this.setupPlaybackControl(instance);
 
-		// 设置开始时间
-		if (track.startTime && track.startTime > 0) {
-			audio.currentTime = track.startTime;
-			console.log('🎵 Set start time:', track.startTime);
-		}
+			// 设置开始时间
+			if (track.startTime && track.startTime > 0) {
+				audio.currentTime = track.startTime;
+				console.log('🎵 Set start time:', track.startTime);
+			}
 
-		// 播放并淡入
-		await audio.play();
-		this.bgmInstance = instance;
-		
-		if (track.fadeIn && track.fadeIn > 0) {
-			await this.fadeIn(instance, track.fadeIn);
-		} else {
-			audio.volume = instance.targetVolume;
-			instance.currentVolume = instance.targetVolume;
+			// 播放并淡入
+			await audio.play();
+			this.bgmInstance = instance;
+			this.isPlayingBGM = true;
+			
+			if (track.fadeIn && track.fadeIn > 0) {
+				await this.fadeIn(instance, track.fadeIn);
+			} else {
+				audio.volume = instance.targetVolume;
+				instance.currentVolume = instance.targetVolume;
+			}
+			
+			console.log('🎵 BGM successfully started:', track.name);
+		} catch (error) {
+			console.error('🎵 Error playing BGM:', error);
+			this.isPlayingBGM = false;
+		} finally {
+			this.audioManagerLock = false;
 		}
 	}
 
@@ -150,6 +174,34 @@ export class AdvancedAudioEngine {
 			this.stopAudio(instance);
 		});
 		this.sfxInstances.clear();
+		
+		this.isPlayingBGM = false;
+		console.log('🎵 All audio stopped');
+	}
+
+	// 强制停止BGM（不等待淡出）
+	private async forceStopBGM(): Promise<void> {
+		if (this.bgmInstance) {
+			console.log('🎵 Force stopping BGM:', this.bgmInstance.track.name);
+			
+			// 立即停止音频，不等待淡出
+			this.bgmInstance.audio.pause();
+			this.bgmInstance.audio.currentTime = 0;
+			
+			// 清理事件监听器
+			if (this.bgmInstance.endTimeHandler) {
+				this.bgmInstance.audio.removeEventListener('timeupdate', this.bgmInstance.endTimeHandler.timeUpdateHandler);
+				this.bgmInstance.audio.removeEventListener('ended', this.bgmInstance.endTimeHandler.endedHandler);
+			}
+			
+			// 清理淡入淡出
+			if (this.bgmInstance.fadeInterval) {
+				clearInterval(this.bgmInstance.fadeInterval);
+			}
+			
+			this.bgmInstance = null;
+			this.isPlayingBGM = false;
+		}
 	}
 
 	// 停止BGM
@@ -471,6 +523,29 @@ export class AdvancedAudioEngine {
 	// 获取当前音量
 	getVolume(): number {
 		return this.globalVolume;
+	}
+
+	// 检查和清理重复的音频实例
+	checkAndCleanupDuplicateAudio(): void {
+		const allAudioElements = document.querySelectorAll('audio');
+		let stoppedCount = 0;
+		
+		allAudioElements.forEach(audio => {
+			// 检查是否是我们管理的音频
+			const isManaged = (this.bgmInstance && this.bgmInstance.audio === audio) ||
+							  Array.from(this.sfxInstances.values()).some(instance => instance.audio === audio);
+			
+			if (!isManaged && !audio.paused) {
+				console.log('🎵 Found unmanaged playing audio, stopping it');
+				audio.pause();
+				audio.currentTime = 0;
+				stoppedCount++;
+			}
+		});
+		
+		if (stoppedCount > 0) {
+			console.log(`🎵 Cleaned up ${stoppedCount} unmanaged audio instances`);
+		}
 	}
 
 	// 获取当前播放进度（BGM）
