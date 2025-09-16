@@ -852,4 +852,3 @@ class RuleEditModal extends Modal {
 		contentEl.empty();
 	}
 }
-
