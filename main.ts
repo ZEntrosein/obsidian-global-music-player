@@ -1,4 +1,5 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, MarkdownPostProcessorContext } from 'obsidian';
+import { MusicBlockProcessor } from './music-block-processor';
 
 // ===================== 类型定义 =====================
 
@@ -291,6 +292,7 @@ export default class GlobalMusicPlayer extends Plugin {
 	ruleEngine: MusicRuleEngine;
 	statusBarItem: HTMLElement;
 	private debounceTimer: number | null = null;
+	private musicBlockProcessor: MusicBlockProcessor | null = null;
 	
 	async onload() {
 		await this.loadSettings();
@@ -311,12 +313,19 @@ export default class GlobalMusicPlayer extends Plugin {
 		// 添加设置面板
 		this.addSettingTab(new MusicPlayerSettingTab(this.app, this));
 		
+		// 初始化音乐块处理器
+		this.musicBlockProcessor = new MusicBlockProcessor(this, this.settings, this.audioEngine);
+		this.musicBlockProcessor.setupProcessor();
+		
 		console.log('Global Music Player loaded');
 	}
 
 	onunload() {
 		if (this.debounceTimer) {
 			window.clearTimeout(this.debounceTimer);
+		}
+		if (this.musicBlockProcessor) {
+			this.musicBlockProcessor.destroy();
 		}
 		this.audioEngine.stop();
 		console.log('Global Music Player unloaded');
