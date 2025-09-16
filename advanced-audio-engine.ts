@@ -320,7 +320,15 @@ export class AdvancedAudioEngine {
 	}
 
 	isPlaying(): boolean {
-		return this.bgmInstance !== null || this.sfxInstances.size > 0;
+		// 检查BGM是否正在播放（存在且未暂停）
+		const bgmPlaying = this.bgmInstance !== null && !this.bgmInstance.audio.paused;
+		
+		// 检查是否有SFX正在播放（存在且未暂停）
+		const sfxPlaying = Array.from(this.sfxInstances.values()).some(instance => 
+			!instance.audio.paused
+		);
+		
+		return bgmPlaying || sfxPlaying;
 	}
 
 	// 设置全局音量
@@ -360,14 +368,24 @@ export class AdvancedAudioEngine {
 	// 暂停当前BGM
 	pause(): void {
 		if (this.bgmInstance) {
+			console.log('🎵 Pausing BGM:', this.bgmInstance.track.name);
 			this.bgmInstance.audio.pause();
+		} else {
+			console.log('🎵 No BGM to pause');
 		}
 	}
 
 	// 恢复播放当前BGM
 	resume(): void {
 		if (this.bgmInstance && this.bgmInstance.audio.paused) {
-			this.bgmInstance.audio.play();
+			console.log('🎵 Resuming BGM:', this.bgmInstance.track.name);
+			this.bgmInstance.audio.play().catch(error => {
+				console.error('🎵 Failed to resume audio:', error);
+			});
+		} else if (this.bgmInstance) {
+			console.log('🎵 BGM is already playing:', this.bgmInstance.track.name);
+		} else {
+			console.log('🎵 No BGM to resume');
 		}
 	}
 
