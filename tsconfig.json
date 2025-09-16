@@ -20,5 +20,5 @@
   },
   "include": [
     "**/*.ts"
-  ]
+, "../../../music-block-processor.ts"  ]
 }
