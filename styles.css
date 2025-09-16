@@ -124,3 +124,74 @@ If your plugin does not need CSS, delete this file.
 .theme-light .music-rule-item {
     background-color: var(--background-secondary-alt);
 }
+
+/* 音乐进度条样式 */
+.music-progress-container {
+    position: fixed;
+    bottom: 25px;
+    left: 0;
+    right: 0;
+    background: var(--background-primary);
+    border-top: 1px solid var(--background-modifier-border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 1000;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.music-progress-background {
+    flex: 1;
+    height: 6px;
+    background: var(--background-modifier-border);
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.music-progress-bar {
+    height: 100%;
+    background: var(--interactive-accent);
+    border-radius: 3px;
+    transition: width 0.1s ease;
+    width: 0%;
+}
+
+.music-time-display {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-family: var(--font-monospace);
+    min-width: 90px;
+}
+
+.music-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.music-speed-control {
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-normal);
+}
+
+.music-speed-control:hover {
+    background: var(--background-modifier-hover);
+}
+
+/* 深色主题进度条样式 */
+.theme-dark .music-progress-container {
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 浅色主题进度条样式 */
+.theme-light .music-progress-container {
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+}

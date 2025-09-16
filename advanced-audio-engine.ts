@@ -10,6 +10,13 @@ export interface AudioTrack {
 	type?: 'bgm' | 'sfx'; // 背景音乐或音效
 	priority?: number; // 音效优先级
 	source?: 'frontmatter' | 'rule' | 'music-block' | 'default'; // 音频来源
+	// 新增音频控制属性
+	startTime?: number; // 开始播放时间（秒）
+	endTime?: number; // 结束播放时间（秒）
+	playbackRate?: number; // 播放速度（0.25-4.0）
+	loopStart?: number; // 循环开始时间（秒）
+	loopEnd?: number; // 循环结束时间（秒）
+	applyRangeToLoop?: boolean; // 是否对循环应用播放区间
 }
 
 interface AudioInstance {
@@ -19,6 +26,9 @@ interface AudioInstance {
 	targetVolume: number;
 	currentVolume: number;
 	type: 'bgm' | 'sfx';
+	// 新增播放控制属性
+	endTimeHandler?: any; // 结束时间监听器
+	isLooping?: boolean; // 是否在循环状态
 }
 
 export class AdvancedAudioEngine {
@@ -53,15 +63,29 @@ export class AdvancedAudioEngine {
 			track: { ...track, type: 'bgm' },
 			targetVolume: track.volume || this.globalVolume,
 			currentVolume: 0,
-			type: 'bgm'
+			type: 'bgm',
+			isLooping: false
 		};
 
 		// 设置音频属性
-		audio.loop = track.loop !== false;
+		audio.loop = false; // 手动控制循环以支持播放区间
 		audio.volume = 0; // 从0开始淡入
+		
+		// 设置播放速度
+		if (track.playbackRate && track.playbackRate >= 0.25 && track.playbackRate <= 4.0) {
+			audio.playbackRate = track.playbackRate;
+			console.log('🎵 Set playback rate:', track.playbackRate);
+		}
 
 		// 设置事件监听
 		this.setupAudioEvents(instance);
+		this.setupPlaybackControl(instance);
+
+		// 设置开始时间
+		if (track.startTime && track.startTime > 0) {
+			audio.currentTime = track.startTime;
+			console.log('🎵 Set start time:', track.startTime);
+		}
 
 		// 播放并淡入
 		await audio.play();
@@ -232,10 +256,16 @@ export class AdvancedAudioEngine {
 			clearInterval(instance.fadeInterval);
 		}
 		
+		// 清理播放控制事件监听器
+		if (instance.endTimeHandler) {
+			instance.audio.removeEventListener('timeupdate', instance.endTimeHandler.timeUpdateHandler);
+			instance.audio.removeEventListener('ended', instance.endTimeHandler.endedHandler);
+		}
+		
 		instance.audio.pause();
 		instance.audio.currentTime = 0;
 		
-		// 清理事件监听器
+		// 清理其他事件监听器
 		instance.audio.removeEventListener('error', () => {});
 		instance.audio.removeEventListener('loadeddata', () => {});
 		instance.audio.removeEventListener('canplay', () => {});
@@ -257,6 +287,50 @@ export class AdvancedAudioEngine {
 		audio.addEventListener('canplay', () => {
 			console.log('🎵 Audio ready to play:', track.name);
 		});
+	}
+
+	// 设置播放控制（循环、结束时间等）
+	private setupPlaybackControl(instance: AudioInstance): void {
+		const { audio, track } = instance;
+
+		// 监听播放时间，处理结束时间和循环
+		const timeUpdateHandler = () => {
+			const currentTime = audio.currentTime;
+			
+			// 检查是否到达结束时间
+			if (track.endTime && currentTime >= track.endTime) {
+				if (track.loop !== false) {
+					// 循环播放
+					const loopStart = track.applyRangeToLoop ? (track.loopStart || track.startTime || 0) : 0;
+					audio.currentTime = loopStart;
+					instance.isLooping = true;
+					console.log('🎵 Looping to:', loopStart);
+				} else {
+					// 停止播放
+					audio.pause();
+					audio.currentTime = track.startTime || 0;
+					console.log('🎵 Reached end time, stopping');
+				}
+			}
+		};
+
+		// 监听自然结束事件
+		const endedHandler = () => {
+			if (track.loop !== false && !instance.isLooping) {
+				// 标准循环（如果没有设置结束时间）
+				const loopStart = track.applyRangeToLoop ? (track.loopStart || track.startTime || 0) : 0;
+				audio.currentTime = loopStart;
+				audio.play();
+				instance.isLooping = true;
+				console.log('🎵 Natural loop to:', loopStart);
+			}
+		};
+
+		audio.addEventListener('timeupdate', timeUpdateHandler);
+		audio.addEventListener('ended', endedHandler);
+
+		// 存储处理器以便清理
+		instance.endTimeHandler = { timeUpdateHandler, endedHandler };
 	}
 
 	// 音频路径解析（复用原有逻辑）
@@ -397,5 +471,36 @@ export class AdvancedAudioEngine {
 	// 获取当前音量
 	getVolume(): number {
 		return this.globalVolume;
+	}
+
+	// 获取当前播放进度（BGM）
+	getCurrentTime(): number {
+		return this.bgmInstance ? this.bgmInstance.audio.currentTime : 0;
+	}
+
+	// 获取音频总时长（BGM）
+	getDuration(): number {
+		return this.bgmInstance ? this.bgmInstance.audio.duration || 0 : 0;
+	}
+
+	// 设置播放进度（BGM）
+	setCurrentTime(time: number): void {
+		if (this.bgmInstance) {
+			this.bgmInstance.audio.currentTime = Math.max(0, Math.min(time, this.getDuration()));
+		}
+	}
+
+	// 获取播放速度（BGM）
+	getPlaybackRate(): number {
+		return this.bgmInstance ? this.bgmInstance.audio.playbackRate : 1.0;
+	}
+
+	// 设置播放速度（BGM）
+	setPlaybackRate(rate: number): void {
+		if (this.bgmInstance && rate >= 0.25 && rate <= 4.0) {
+			this.bgmInstance.audio.playbackRate = rate;
+			this.bgmInstance.track.playbackRate = rate;
+			console.log('🎵 Updated playback rate:', rate);
+		}
 	}
 } 

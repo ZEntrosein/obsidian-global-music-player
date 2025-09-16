@@ -9,8 +9,15 @@ interface MusicBlockConfig {
 	fadeOut?: number;
 	description?: string;
 	autoplay?: boolean;
-	type?: 'bgm' | 'sfx'; // 新增：音频类型
-	layered?: boolean; // 新增：是否叠加播放（不中断当前音乐）
+	type?: 'bgm' | 'sfx'; // 音频类型
+	layered?: boolean; // 是否叠加播放（不中断当前音乐）
+	// 新增音频控制属性
+	startTime?: number; // 开始播放时间（秒）
+	endTime?: number; // 结束播放时间（秒）
+	playbackRate?: number; // 播放速度（0.25-4.0）
+	loopStart?: number; // 循环开始时间（秒）
+	loopEnd?: number; // 循环结束时间（秒）
+	applyRangeToLoop?: boolean; // 是否对循环应用播放区间
 }
 
 interface MusicTrack {
@@ -23,6 +30,13 @@ interface MusicTrack {
 	fadeOut?: number;
 	loop?: boolean;
 	type?: 'bgm' | 'sfx';
+	// 新增音频控制属性
+	startTime?: number;
+	endTime?: number;
+	playbackRate?: number;
+	loopStart?: number;
+	loopEnd?: number;
+	applyRangeToLoop?: boolean;
 }
 
 export class MusicBlockProcessor {
@@ -227,7 +241,14 @@ export class MusicBlockProcessor {
 			fadeIn: config.fadeIn || 0,
 			fadeOut: config.fadeOut || 0,
 			loop: config.loop !== false, // 默认循环播放
-			type: config.type || 'bgm' // 默认为背景音乐
+			type: config.type || 'bgm', // 默认为背景音乐
+			// 新增音频控制属性
+			startTime: config.startTime,
+			endTime: config.endTime,
+			playbackRate: config.playbackRate,
+			loopStart: config.loopStart,
+			loopEnd: config.loopEnd,
+			applyRangeToLoop: config.applyRangeToLoop
 		};
 
 		// 更新当前播放状态

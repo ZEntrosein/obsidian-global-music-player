@@ -128,6 +128,9 @@ export default class GlobalMusicPlayer extends Plugin {
 	statusBarItem: HTMLElement;
 	private debounceTimer: number | null = null;
 	private musicBlockProcessor: MusicBlockProcessor | null = null;
+	private progressBarContainer: HTMLElement | null = null;
+	private progressBarElement: HTMLElement | null = null;
+	private progressUpdateInterval: number | null = null;
 	
 	async onload() {
 		await this.loadSettings();
@@ -169,6 +172,7 @@ export default class GlobalMusicPlayer extends Plugin {
 		if (this.musicBlockProcessor) {
 			this.musicBlockProcessor.destroy();
 		}
+		this.hideProgressBar();
 		this.audioEngine.stop();
 		console.log('Global Music Player unloaded');
 	}
@@ -178,13 +182,20 @@ export default class GlobalMusicPlayer extends Plugin {
 		this.updateStatusBar();
 		
 		// 点击状态栏切换播放/暂停
-		this.statusBarItem.addEventListener('click', () => {
-			if (this.audioEngine.isCurrentlyPlaying()) {
-				this.audioEngine.pause();
+		this.statusBarItem.addEventListener('click', (e) => {
+			e.preventDefault();
+			if (e.shiftKey) {
+				// Shift+点击显示进度条
+				this.toggleProgressBar();
 			} else {
-				this.audioEngine.resume();
+				// 普通点击播放/暂停
+				if (this.audioEngine.isCurrentlyPlaying()) {
+					this.audioEngine.pause();
+				} else {
+					this.audioEngine.resume();
+				}
+				this.updateStatusBar();
 			}
-			this.updateStatusBar();
 		});
 	}
 
@@ -208,6 +219,123 @@ export default class GlobalMusicPlayer extends Plugin {
 			case 'music-block': return '🎶'; // 表示来自音乐块
 			default: return '🎵'; // 默认
 		}
+	}
+
+	private toggleProgressBar(): void {
+		if (this.progressBarContainer) {
+			// 隐藏进度条
+			this.hideProgressBar();
+		} else {
+			// 显示进度条
+			this.showProgressBar();
+		}
+	}
+
+	private showProgressBar(): void {
+		if (this.progressBarContainer) return;
+
+		// 创建进度条容器
+		this.progressBarContainer = document.createElement('div');
+		this.progressBarContainer.className = 'music-progress-container';
+		
+		// 创建进度条背景
+		const progressBackground = this.progressBarContainer.createEl('div', {
+			cls: 'music-progress-background'
+		});
+
+		// 创建进度条
+		this.progressBarElement = progressBackground.createEl('div', {
+			cls: 'music-progress-bar'
+		});
+
+		// 创建时间显示
+		const timeDisplay = this.progressBarContainer.createEl('div', {
+			cls: 'music-time-display'
+		});
+
+		// 创建控制按钮
+		const controlsContainer = this.progressBarContainer.createEl('div', {
+			cls: 'music-controls'
+		});
+
+		// 播放速度控制
+		const speedControl = controlsContainer.createEl('select', {
+			cls: 'music-speed-control'
+		});
+		
+		const speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+		speeds.forEach(speed => {
+			const option = speedControl.createEl('option', {
+				value: speed.toString(),
+				text: `${speed}x`
+			});
+			if (speed === 1.0) option.selected = true;
+		});
+
+		speedControl.addEventListener('change', () => {
+			const rate = parseFloat(speedControl.value);
+			this.audioEngine.setPlaybackRate(rate);
+		});
+
+		// 添加到状态栏下方
+		const statusBarEl = document.querySelector('.status-bar');
+		if (statusBarEl) {
+			statusBarEl.appendChild(this.progressBarContainer);
+		}
+
+		// 进度条点击事件
+		progressBackground.addEventListener('click', (e) => {
+			const rect = progressBackground.getBoundingClientRect();
+			const clickX = e.clientX - rect.left;
+			const percentage = clickX / rect.width;
+			const duration = this.audioEngine.getDuration();
+			const newTime = duration * percentage;
+			this.audioEngine.setCurrentTime(newTime);
+		});
+
+		// 开始更新进度条
+		this.startProgressUpdate();
+	}
+
+	private hideProgressBar(): void {
+		if (this.progressBarContainer) {
+			this.progressBarContainer.remove();
+			this.progressBarContainer = null;
+			this.progressBarElement = null;
+		}
+		
+		if (this.progressUpdateInterval) {
+			clearInterval(this.progressUpdateInterval);
+			this.progressUpdateInterval = null;
+		}
+	}
+
+	private startProgressUpdate(): void {
+		if (this.progressUpdateInterval) {
+			clearInterval(this.progressUpdateInterval);
+		}
+
+		this.progressUpdateInterval = window.setInterval(() => {
+			if (!this.progressBarElement || !this.progressBarContainer) return;
+
+			const currentTime = this.audioEngine.getCurrentTime();
+			const duration = this.audioEngine.getDuration();
+			
+			if (duration > 0) {
+				const percentage = (currentTime / duration) * 100;
+				this.progressBarElement.style.width = `${percentage}%`;
+				
+				// 更新时间显示
+				const timeDisplay = this.progressBarContainer.querySelector('.music-time-display');
+				if (timeDisplay) {
+					const currentMin = Math.floor(currentTime / 60);
+					const currentSec = Math.floor(currentTime % 60);
+					const durationMin = Math.floor(duration / 60);
+					const durationSec = Math.floor(duration % 60);
+					timeDisplay.textContent = `${currentMin}:${currentSec.toString().padStart(2, '0')} / ${durationMin}:${durationSec.toString().padStart(2, '0')}`;
+				}
+			}
+		}, 100);
 	}
 
 	private registerEvents(): void {
